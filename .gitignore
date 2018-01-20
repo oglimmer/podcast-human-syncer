@@ -1,0 +1,3 @@
+public/images/*.png
+public/images/*.gif
+node_modules
