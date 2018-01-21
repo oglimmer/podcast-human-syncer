@@ -1,3 +1,5 @@
 public/images/*.png
 public/images/*.gif
 node_modules
+.sapper
+templates/.main.rendered.js
