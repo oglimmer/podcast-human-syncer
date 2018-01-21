@@ -1,0 +1,186 @@
+<:Head>
+  <title>Podcast-human-syncer</title>
+</:Head>
+
+<Layout page='home'>
+
+  {{#if username}}
+
+    <div>
+      Your name: {{username}} -
+      connected:
+      {{#each conntected as userConnected, index }}
+        {{#if index > 0}}, {{/if}}
+        <span class='userSpan' on:click='onClickBtnTookOver(userConnected)'>{{userConnected}}</span>
+      {{/each}}
+      <br/>
+      {{#if lastServerUpdate.current !== username && lastServerUpdate.next === '' && lastServerUpdate.urgent === ''}}
+        <button class='action' on:click="onClickBtnNext()">I'm next</button>
+      {{/if}}
+      {{#if lastServerUpdate.current !== username && lastServerUpdate.urgent !== username}}
+        <button class='action' on:click="onClickBtnUrgent()">NOW!!!</button>
+      {{/if}}
+      {{#if lastServerUpdate.current !== username}}
+        <button class='action' on:click="onClickBtnTookOver()">I took over</button>
+      {{/if}}
+      {{#if lastServerUpdate.current === username && lastServerUpdate.wantToFinish !== username}}
+        <button class='action' on:click="onClickBtnFinished()">I want to finish</button>
+      {{/if}}
+    </div>
+    <div>
+      <img src="/images/{{currentImagePath}}" alt="current speeker" />
+      {{#if queueImagePath}}
+        <img src="/images/{{queueImagePath}}" alt="next speeker" />
+      {{/if}}
+    </div>
+    <div>
+      since {{sinceCounter}} secs.
+    </div>
+
+  {{else}}
+
+    <div>
+      Enter your username:
+      <input bind:value='inputUsername' />
+      <button on:click='connect()'>Go</button>
+    </div>
+
+  {{/if}}
+
+</Layout>
+
+<style>
+  div {
+    font-family: Arial;
+    padding-top: 20px;
+  }
+
+  button.action {
+    font-family: Arial;
+    font-size: 30px;
+    margin-top: 30px;
+    padding:15px;
+  }
+
+  .userSpan {
+    border: 2px solid white;
+  }
+
+  .userSpan:hover {
+    border: 2px solid red;
+  }
+</style>
+
+<script>
+  import Layout from './_components/Layout.html';
+  import io from '../node_modules/socket.io-client';
+
+  function getUrlParam(paramName) {
+    var url = window.location.search.substring(1);
+    var vars = url.split('&');
+    for (var i = 0; i < vars.length; i++) {
+      var nameVal = vars[i].split('=');
+      if (nameVal[0] === paramName) {
+        return nameVal[1];
+      }
+    }
+  }
+
+  export default {
+    components: {
+      Layout
+    },
+    data() {
+      return {
+        username: null,
+        inputUsername: '',
+        sinceCounter: 0,
+        conntected: [],
+        currentImagePath: 'profile_tim.png',
+        queueImagePath: '',
+        socket: null,
+        lastServerUpdate: {
+          current: '',
+          wantToFinish: '',
+          next: '',
+          urgent: ''
+        }
+      };
+    },
+    methods: {
+      connect() {
+        const username = this.get('inputUsername');
+        this.set({ username })
+        this.get('socket').emit('transfer name', username);
+        localStorage.setItem('username', username);
+      },
+      onClickBtnNext() {
+        this.get('socket').emit('ask for next', this.get('username'));
+      },
+      onClickBtnUrgent() {
+        this.get('socket').emit('ask for urgent', this.get('username'));
+      },
+      onClickBtnTookOver(username) {
+        if(!username) {
+          username = this.get('username');
+        }
+        this.get('socket').emit('took over', username);
+      },
+      onClickBtnFinished() {
+        this.get('socket').emit('want to finish', this.get('username'));
+      }
+    },
+    oncreate() {
+      const socket = io();
+      this.set({ socket });
+
+      socket.on('update status', data => {
+        this.set({ lastServerUpdate: data });
+        if (data.resetTime) {
+          this.set({ sinceCounter: 0 });
+        }
+
+        if (data.wantToFinish) {
+          this.set({ currentImagePath: "done_" + data.wantToFinish.toLowerCase() + ".png"});
+        } else {
+          this.set({ currentImagePath: "profile_" + data.current.toLowerCase() + ".png"});
+        }
+        if (data.urgent) {
+          this.set({ queueImagePath: "urgent_" + data.urgent.toLowerCase() + ".gif"});
+        } else if (data.next) {
+          this.set({ queueImagePath: "next_" + data.next.toLowerCase() + ".png"});
+        } else {
+          this.set({ queueImagePath: ""});
+        }
+
+      });
+
+      socket.on('user join failed', error => {
+        alert(error);
+      });
+
+      socket.on('user joined', usernames => {
+        let conntected = [];
+        Object.keys(usernames).forEach(key => conntected.push(key));
+        this.set({ conntected });
+      });
+      setInterval(() => {
+        this.set({ sinceCounter: this.get('sinceCounter') + 1 })
+      }, 1000);
+      const urlParamUsername = getUrlParam('name');
+      if (urlParamUsername) {
+        if (urlParamUsername === 'clear') {
+          localStorage.removeItem('username');
+        } else {
+          localStorage.setItem('username', urlParamUsername);
+        }
+      }
+      const username = localStorage.getItem('username');
+      if(username) {
+        console.log(`found username = ${username}`);
+        this.set({ username });
+        this.get('socket').emit('transfer name', username);
+      }
+    }
+  };
+</script>

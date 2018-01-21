@@ -3,13 +3,14 @@ Description=Podcast Human Syncer Server
 
 [Service]
 WorkingDirectory=/usr/local/podcast-human-helper
-ExecStart=/usr/bin/node /usr/local/podcast-human-helper/index.js
+ExecStart=/usr/bin/node /usr/local/podcast-human-helper/server.js
 Restart=always
 RestartSec=10                       # Restart service after 10 seconds if node service crashes
 StandardOutput=syslog               # Output to syslog
 StandardError=syslog                # Output to syslog
 SyslogIdentifier=nodejs-phs
 Environment=PORT=9999
+Environment=NODE_ENV=production
 
 [Install]
 WantedBy=multi-user.target
