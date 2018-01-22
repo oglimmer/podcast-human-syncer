@@ -39,7 +39,7 @@ var wantToFinish = '';
 io.on('connection', socket => {
 
   socket.on('transfer name', name => {
-    console.log(`transfer name:: ${name}`);
+    // console.log(`transfer name:: ${name}`);
     if (connectedUsers[name]) {
       socket.emit('user join failed', 'Name already exists');
     } else {
@@ -55,7 +55,7 @@ io.on('connection', socket => {
   });
 
   socket.on('disconnect', () => {
-    console.log(`disconnect:: ${socket.username}`);
+    // console.log(`disconnect:: ${socket.username}`);
     delete connectedUsers[socket.username];
     socket.broadcast.emit('user joined', connectedUsers);
   });
@@ -78,7 +78,7 @@ io.on('connection', socket => {
   }
 
   socket.on('took over', name => {
-    console.log(`took over:: ${name}`);
+    // console.log(`took over:: ${name}`);
     if (current !== name) {
       current =  name;
       next = '';
@@ -88,21 +88,21 @@ io.on('connection', socket => {
     }
   });
   socket.on('want to finish', name => {
-    console.log(`want to finish:: ${name}`);
+    // console.log(`want to finish:: ${name}`);
     if (current === name) {
       wantToFinish = name;
       updateStatus(false);
     }
   });
   socket.on('ask for next', name => {
-    console.log(`ask for next:: ${name}`);
+    // console.log(`ask for next:: ${name}`);
     if (next === '' && urgent === '' && current !== name) {
       next = name;
       updateStatus(false);
     }
   });
   socket.on('ask for urgent', name => {
-    console.log(`ask for urgent:: ${name}`);
+    // console.log(`ask for urgent:: ${name}`);
     if (current !== name) {
       urgent = name;
       next = '';
