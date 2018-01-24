@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 const fs = require('fs');
 const compression = require('compression');
 const sapper = require('sapper');
