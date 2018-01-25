@@ -93,7 +93,8 @@ module.exports = server => {
     });
     socket.on('ask for next', async name => {
       // console.log(`ask for next:: ${name}`);
-      if (await GET('next') === '' && await GET('urgent') === '' && await GET('current') !== name) {
+      const [next, urgent, current] = await MGET('next', 'urgent', 'current');
+      if (next === '' && urgent === '' && current !== name) {
         await SET('next', name);
         updateStatus(false);
       }
