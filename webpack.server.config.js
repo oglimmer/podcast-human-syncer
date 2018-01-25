@@ -4,7 +4,7 @@ const ExtractTextPlugin = require("extract-text-webpack-plugin");
 const UglifyJSPlugin = require('uglifyjs-webpack-plugin');
 
 module.exports = {
-	entry: config.server.entry(),
+  entry: config.server.entry(),
 	output: config.server.output(),
 	target: 'node',
 	resolve: {
@@ -12,6 +12,11 @@ module.exports = {
 	},
 	module: {
 		rules: [
+      {
+        test: /\.js$/,
+        use: 'babel-loader',
+        exclude: /node_modules/,
+      },
 			{
 				test: /\.html$/,
 				exclude: /node_modules/,

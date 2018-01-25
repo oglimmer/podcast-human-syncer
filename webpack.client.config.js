@@ -5,14 +5,22 @@ const UglifyJSPlugin = require('uglifyjs-webpack-plugin');
 
 const isDev = config.dev;
 
+const clientEntries = config.client.entry();
+clientEntries.main.splice(0, 0, 'babel-register', 'babel-polyfill'),
+
 module.exports = {
-	entry: config.client.entry(),
+	entry: clientEntries,
 	output: config.client.output(),
 	resolve: {
 		extensions: ['.js', '.html']
 	},
 	module: {
 		rules: [
+      {
+        test: /\.js$/,
+        use: 'babel-loader',
+        exclude: /node_modules/,
+      },
 			{
 				test: /\.html$/,
 				exclude: /node_modules/,

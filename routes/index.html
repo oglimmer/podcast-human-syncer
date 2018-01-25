@@ -75,11 +75,12 @@
 
 <script>
   import Cookies from 'js-cookie';
+  import capitalize from 'capitalize';
   import Layout from './_components/Layout.html';
   import io from '../node_modules/socket.io-client';
 
   export default {
-    preload(req) {
+    async preload(req) {
       const { name } = req.query;
       var username = '';
       if (name) {
@@ -87,18 +88,20 @@
       } else if (req.cookies.username) {
         username = req.cookies.username;
       }
-      if (username && !globalData.connectedUsers.findIgnoreCase(username)) {
-        global.globalData.connectedUsers.push(username);
+
+      if (username) {
+        await global.DBREF.SADD("connectedUsers", capitalize(username));
       }
+      const [current, next, urgent, wantToFinish] = await global.DBREF.MGET('current', 'next', 'urgent', 'wantToFinish');
       return {
         username,
         lastServerUpdate: {
-          current: global.globalData.current,
-          wantToFinish: global.globalData.wantToFinish,
-          next: global.globalData.next,
-          urgent: global.globalData.urgent
+          current,
+          wantToFinish,
+          next,
+          urgent
         },
-        conntected: global.globalData.connectedUsers
+        conntected: await global.DBREF.SMEMBERS('connectedUsers')
       };
     },
     components: {
@@ -124,9 +127,7 @@
     methods: {
       connect() {
         const username = this.get('inputUsername');
-        this.set({ username })
         this.get('socket').emit('transfer name', username);
-        Cookies.set('username', username, { expires: 365 });
       },
       onClickBtnNext() {
         this.get('socket').emit('ask for next', this.get('username'));
@@ -149,18 +150,18 @@
           newData.sinceCounter = 0;
         }
         if (data.wantToFinish) {
-          newData.currentImagePath = "done_" + data.wantToFinish.toLowerCase() + ".png";
+          newData.currentImagePath = `done_${data.wantToFinish.toLowerCase()}.png`;
         } else if (data.current) {
-          newData.currentImagePath = "profile_" + data.current.toLowerCase() + ".png";
+          newData.currentImagePath = `profile_${data.current.toLowerCase()}.png`;
         } else {
-          newData.currentImagePath = "";
+          newData.currentImagePath = '';
         }
         if (data.urgent) {
-          newData.queueImagePath = "urgent_" + data.urgent.toLowerCase() + ".gif";
+          newData.queueImagePath = `urgent_${data.urgent.toLowerCase()}.gif`;
         } else if (data.next) {
-          newData.queueImagePath = "next_" + data.next.toLowerCase() + ".png";
+          newData.queueImagePath = `next_${data.next.toLowerCase()}.png`;
         } else {
-          newData.queueImagePath = "";
+          newData.queueImagePath = '';
         }
         this.set(newData);
       }
@@ -171,7 +172,14 @@
 
       socket.on('update status', this.updateStatus.bind(this));
 
+      socket.on('user accepted', username => {
+        this.set({ username })
+        Cookies.set('username', username, { expires: 365 });
+      });
+
       socket.on('user join failed', error => {
+        this.set({ username: '' })
+        Cookies.set('username', '');
         alert(error);
       });
 
