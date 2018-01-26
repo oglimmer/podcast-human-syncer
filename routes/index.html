@@ -79,6 +79,24 @@ import capitalize from 'capitalize'
 import Layout from './_components/Layout.html'
 import io from '../node_modules/socket.io-client'
 
+function getCurrentImagePath (wantToFinish, current) {
+  if (wantToFinish) {
+    return `done_${wantToFinish.toLowerCase()}.png`
+  } else if (current) {
+    return `profile_${current.toLowerCase()}.png`
+  }
+  return ''
+}
+
+function getQueueImagePath (urgent, next) {
+  if (urgent) {
+    return `urgent_${urgent.toLowerCase()}.gif`
+  } else if (next) {
+    return `next_${next.toLowerCase()}.png`
+  }
+  return ''
+}
+
 export default {
   async preload (req) {
     const { name } = req.query
@@ -101,7 +119,9 @@ export default {
         next,
         urgent
       },
-      conntected: await global.DBREF.SMEMBERS('connectedUsers')
+      conntected: await global.DBREF.SMEMBERS('connectedUsers'),
+      currentImagePath: getCurrentImagePath(wantToFinish, current),
+      queueImagePath: getQueueImagePath(urgent, next)
     }
   },
   components: {
@@ -144,24 +164,12 @@ export default {
     updateStatus (data) {
       const newData = {
         lastServerUpdate: data,
-        conntected: data.conntected
+        conntected: data.conntected,
+        currentImagePath: getCurrentImagePath(data.wantToFinish, data.current),
+        queueImagePath: getQueueImagePath(data.urgent, data.next)
       }
       if (data.resetTime) {
         newData.sinceCounter = 0
-      }
-      if (data.wantToFinish) {
-        newData.currentImagePath = `done_${data.wantToFinish.toLowerCase()}.png`
-      } else if (data.current) {
-        newData.currentImagePath = `profile_${data.current.toLowerCase()}.png`
-      } else {
-        newData.currentImagePath = ''
-      }
-      if (data.urgent) {
-        newData.queueImagePath = `urgent_${data.urgent.toLowerCase()}.gif`
-      } else if (data.next) {
-        newData.queueImagePath = `next_${data.next.toLowerCase()}.png`
-      } else {
-        newData.queueImagePath = ''
       }
       this.set(newData)
     }
@@ -190,7 +198,6 @@ export default {
     const username = this.get('username')
     if (username) {
       this.get('socket').emit('rejoin user', username)
-      this.updateStatus(this.get('lastServerUpdate'))
     }
   }
 }
