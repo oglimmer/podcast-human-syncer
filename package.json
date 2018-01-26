@@ -12,7 +12,7 @@
     "start": "cross-env NODE_ENV=production node server.js",
     "cy:run": "cypress run",
     "cy:open": "cypress open",
-    "test": "run-p --race dev cy:run"
+    "test": "cross-env NODE_ENV=test run-p --race dev cy:run"
   },
   "dependencies": {
     "babel-core": "^6.26.0",

@@ -4,21 +4,24 @@ const { promisify } = require('util');
 const redis = require('redis');
 const capitalize = require('capitalize');
 
-const client = redis.createClient();
-const SMEMBERS = promisify(client.SMEMBERS).bind(client);
-const SISMEMBER = promisify(client.SISMEMBER).bind(client);
-const SADD = promisify(client.SADD).bind(client);
-const SREM = promisify(client.SREM).bind(client);
-const GET = promisify(client.GET).bind(client);
-const MGET = promisify(client.MGET).bind(client);
-const SET = promisify(client.SET).bind(client);
-const MSET = promisify(client.MSET).bind(client);
+// TODO: replace with a `more reasonable` test stub
+if (process.env.NODE_ENV !== 'test') {
+  const client = redis.createClient();
+  const SMEMBERS = promisify(client.SMEMBERS).bind(client);
+  const SISMEMBER = promisify(client.SISMEMBER).bind(client);
+  const SADD = promisify(client.SADD).bind(client);
+  const SREM = promisify(client.SREM).bind(client);
+  const GET = promisify(client.GET).bind(client);
+  const MGET = promisify(client.MGET).bind(client);
+  const SET = promisify(client.SET).bind(client);
+  const MSET = promisify(client.MSET).bind(client);
 
-global.DBREF = {
-  SADD,
-  SMEMBERS,
-  MGET
-};
+  global.DBREF = {
+    SADD,
+    SMEMBERS,
+    MGET
+  };
+}
 
 module.exports = server => {
 
