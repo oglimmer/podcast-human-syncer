@@ -74,124 +74,124 @@
 </style>
 
 <script>
-  import Cookies from 'js-cookie';
-  import capitalize from 'capitalize';
-  import Layout from './_components/Layout.html';
-  import io from '../node_modules/socket.io-client';
+import Cookies from 'js-cookie'
+import capitalize from 'capitalize'
+import Layout from './_components/Layout.html'
+import io from '../node_modules/socket.io-client'
 
-  export default {
-    async preload(req) {
-      const { name } = req.query;
-      var username = '';
-      if (name) {
-        username = name;
-      } else if (req.cookies.username) {
-        username = req.cookies.username;
-      }
+export default {
+  async preload (req) {
+    const { name } = req.query
+    var username = ''
+    if (name) {
+      username = name
+    } else if (req.cookies.username) {
+      username = req.cookies.username
+    }
 
-      if (username) {
-        await global.DBREF.SADD("connectedUsers", capitalize(username));
-      }
-      const [current, next, urgent, wantToFinish] = await global.DBREF.MGET('current', 'next', 'urgent', 'wantToFinish');
-      return {
-        username,
-        lastServerUpdate: {
-          current,
-          wantToFinish,
-          next,
-          urgent
-        },
-        conntected: await global.DBREF.SMEMBERS('connectedUsers')
-      };
-    },
-    components: {
-      Layout
-    },
-    data() {
-      return {
-        username: null,
-        inputUsername: '',
-        sinceCounter: 0,
-        conntected: [],
-        currentImagePath: '',
-        queueImagePath: '',
-        socket: null,
-        lastServerUpdate: {
-          current: '',
-          wantToFinish: '',
-          next: '',
-          urgent: ''
-        }
-      };
-    },
-    methods: {
-      connect() {
-        const username = this.get('inputUsername');
-        this.get('socket').emit('transfer name', username);
+    if (username) {
+      await global.DBREF.SADD('connectedUsers', capitalize(username))
+    }
+    const [current, next, urgent, wantToFinish] = await global.DBREF.MGET('current', 'next', 'urgent', 'wantToFinish')
+    return {
+      username,
+      lastServerUpdate: {
+        current,
+        wantToFinish,
+        next,
+        urgent
       },
-      onClickBtnNext() {
-        this.get('socket').emit('ask for next', this.get('username'));
-      },
-      onClickBtnUrgent() {
-        this.get('socket').emit('ask for urgent', this.get('username'));
-      },
-      onClickBtnTookOver(username = this.get('username')) {
-        this.get('socket').emit('took over', username);
-      },
-      onClickBtnFinished() {
-        this.get('socket').emit('want to finish', this.get('username'));
-      },
-      updateStatus(data) {
-        const newData = {
-          lastServerUpdate: data,
-          conntected: data.conntected
-        };
-        if (data.resetTime) {
-          newData.sinceCounter = 0;
-        }
-        if (data.wantToFinish) {
-          newData.currentImagePath = `done_${data.wantToFinish.toLowerCase()}.png`;
-        } else if (data.current) {
-          newData.currentImagePath = `profile_${data.current.toLowerCase()}.png`;
-        } else {
-          newData.currentImagePath = '';
-        }
-        if (data.urgent) {
-          newData.queueImagePath = `urgent_${data.urgent.toLowerCase()}.gif`;
-        } else if (data.next) {
-          newData.queueImagePath = `next_${data.next.toLowerCase()}.png`;
-        } else {
-          newData.queueImagePath = '';
-        }
-        this.set(newData);
-      }
-    },
-    oncreate() {
-      const socket = io();
-      this.set({ socket });
-
-      socket.on('update status', this.updateStatus.bind(this));
-
-      socket.on('user accepted', username => {
-        this.set({ username })
-        Cookies.set('username', username, { expires: 365 });
-      });
-
-      socket.on('user join failed', error => {
-        this.set({ username: '' })
-        Cookies.set('username', '');
-        alert(error);
-      });
-
-      setInterval(() => {
-        this.set({ sinceCounter: this.get('sinceCounter') + 1 })
-      }, 1000);
-
-      const username = this.get('username');
-      if(username) {
-        this.get('socket').emit('rejoin user', username);
-        this.updateStatus(this.get('lastServerUpdate'));
+      conntected: await global.DBREF.SMEMBERS('connectedUsers')
+    }
+  },
+  components: {
+    Layout
+  },
+  data () {
+    return {
+      username: null,
+      inputUsername: '',
+      sinceCounter: 0,
+      conntected: [],
+      currentImagePath: '',
+      queueImagePath: '',
+      socket: null,
+      lastServerUpdate: {
+        current: '',
+        wantToFinish: '',
+        next: '',
+        urgent: ''
       }
     }
-  };
+  },
+  methods: {
+    connect () {
+      const username = this.get('inputUsername')
+      this.get('socket').emit('transfer name', username)
+    },
+    onClickBtnNext () {
+      this.get('socket').emit('ask for next', this.get('username'))
+    },
+    onClickBtnUrgent () {
+      this.get('socket').emit('ask for urgent', this.get('username'))
+    },
+    onClickBtnTookOver (username = this.get('username')) {
+      this.get('socket').emit('took over', username)
+    },
+    onClickBtnFinished () {
+      this.get('socket').emit('want to finish', this.get('username'))
+    },
+    updateStatus (data) {
+      const newData = {
+        lastServerUpdate: data,
+        conntected: data.conntected
+      }
+      if (data.resetTime) {
+        newData.sinceCounter = 0
+      }
+      if (data.wantToFinish) {
+        newData.currentImagePath = `done_${data.wantToFinish.toLowerCase()}.png`
+      } else if (data.current) {
+        newData.currentImagePath = `profile_${data.current.toLowerCase()}.png`
+      } else {
+        newData.currentImagePath = ''
+      }
+      if (data.urgent) {
+        newData.queueImagePath = `urgent_${data.urgent.toLowerCase()}.gif`
+      } else if (data.next) {
+        newData.queueImagePath = `next_${data.next.toLowerCase()}.png`
+      } else {
+        newData.queueImagePath = ''
+      }
+      this.set(newData)
+    }
+  },
+  oncreate () {
+    const socket = io()
+    this.set({ socket })
+
+    socket.on('update status', this.updateStatus.bind(this))
+
+    socket.on('user accepted', username => {
+      this.set({ username })
+      Cookies.set('username', username, { expires: 365 })
+    })
+
+    socket.on('user join failed', error => {
+      this.set({ username: '' })
+      Cookies.set('username', '')
+      window.alert(error)
+    })
+
+    setInterval(() => {
+      this.set({ sinceCounter: this.get('sinceCounter') + 1 })
+    }, 1000)
+
+    const username = this.get('username')
+    if (username) {
+      this.get('socket').emit('rejoin user', username)
+      this.updateStatus(this.get('lastServerUpdate'))
+    }
+  }
+}
 </script>

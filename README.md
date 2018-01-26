@@ -20,3 +20,7 @@ Helps to sync "who is talking" and "who wants to talk next / now" for podcasts (
 [How do I convert a video to GIF using ffmpeg, with reasonable quality?](https://superuser.com/questions/556029/how-do-i-convert-a-video-to-gif-using-ffmpeg-with-reasonable-quality)
 
 [How to Crop Video on Mac with iMovie](http://osxdaily.com/2016/08/21/crop-video-mac-imovie/)
+
+## eslint
+
+eslint works only in your editor (e.g. sublime) for now.
