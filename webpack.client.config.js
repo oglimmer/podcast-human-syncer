@@ -5,11 +5,8 @@ const UglifyJSPlugin = require('uglifyjs-webpack-plugin')
 
 const isDev = config.dev
 
-const clientEntries = config.client.entry()
-clientEntries.main.splice(0, 0, 'babel-register', 'babel-polyfill')
-
 module.exports = {
-  entry: clientEntries,
+  entry: config.client.entry(),
   output: config.client.output(),
   resolve: {
     extensions: ['.js', '.html']

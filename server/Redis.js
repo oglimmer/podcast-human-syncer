@@ -21,12 +21,6 @@ if (process.env.NODE_ENV !== 'test') {
   MGET = promisify(client.MGET).bind(client)
   SET = promisify(client.SET).bind(client)
   MSET = promisify(client.MSET).bind(client)
-
-  global.DBREF = {
-    SADD,
-    SMEMBERS,
-    MGET
-  }
 }
 
 module.exports = {

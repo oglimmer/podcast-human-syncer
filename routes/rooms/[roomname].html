@@ -1,0 +1,215 @@
+<:Head>
+  <title>Podcast-human-syncer</title>
+</:Head>
+
+<Layout page='rooms'>
+
+  {{#if username}}
+
+    <div>
+      Your name: {{username}} - {{connected}}
+      connected:
+      {{#each connected as userConnected, index }}
+        {{#if index > 0}}, {{/if}}
+        <span class='userSpan' on:click='onClickBtnTookOver(userConnected)'>{{userConnected}}</span>
+      {{/each}}
+      <br/>
+      {{#if lastServerUpdate.current !== username && lastServerUpdate.next === '' && lastServerUpdate.urgent === ''}}
+        <button class='action' on:click="onClickBtnNext()">I'm next</button>
+      {{/if}}
+      {{#if lastServerUpdate.current !== username && lastServerUpdate.urgent !== username}}
+        <button class='action' on:click="onClickBtnUrgent()">NOW!!!</button>
+      {{/if}}
+      {{#if lastServerUpdate.current !== username}}
+        <button class='action' on:click="onClickBtnTookOver()">I took over</button>
+      {{/if}}
+      {{#if lastServerUpdate.current === username && lastServerUpdate.wantToFinish !== username}}
+        <button class='action' on:click="onClickBtnFinished()">I want to finish</button>
+      {{/if}}
+    </div>
+    <div>
+      {{#if currentImagePath}}
+        <img src="/images/{{currentImagePath}}" alt="current speeker" />
+      {{/if}}
+      {{#if queueImagePath}}
+        <img src="/images/{{queueImagePath}}" alt="next speeker" />
+      {{/if}}
+    </div>
+    <div>
+      since {{sinceCounter}} secs.
+    </div>
+
+  {{else}}
+
+    <div>
+      Enter your username:
+      <input bind:value='inputUsername' />
+      <button on:click='connect()'>Go</button>
+    </div>
+
+  {{/if}}
+
+</Layout>
+
+<style>
+  div {
+    font-family: Arial;
+    padding-top: 20px;
+  }
+
+  button.action {
+    font-family: Arial;
+    font-size: 30px;
+    margin-top: 30px;
+    padding:15px;
+  }
+
+  .userSpan {
+    border: 2px solid white;
+  }
+
+  .userSpan:hover {
+    border: 2px solid red;
+  }
+</style>
+
+<script>
+import Cookies from 'js-cookie'
+import Layout from '../_components/Layout.html'
+import io from '../../node_modules/socket.io-client'
+
+function getCurrentImagePath (wantToFinish, current) {
+  if (wantToFinish) {
+    return `done_${wantToFinish.toLowerCase()}.png`
+  } else if (current) {
+    return `profile_${current.toLowerCase()}.png`
+  }
+  return ''
+}
+
+function getQueueImagePath (urgent, next) {
+  if (urgent) {
+    return `urgent_${urgent.toLowerCase()}.gif`
+  } else if (next) {
+    return `next_${next.toLowerCase()}.png`
+  }
+  return ''
+}
+
+export default {
+  async preload (req) {
+    const { roomname } = req.params
+    const { name } = req.query
+    var username = ''
+    if (name) {
+      username = name
+    } else if (req.cookies && req.cookies.username) {
+      username = req.cookies.username
+    } else if (Cookies.get('username')) {
+      username = Cookies.get('username')
+    }
+
+    var url = `/api/rooms/${roomname}`
+    if (username) {
+      url += `?username=${username}`
+    }
+    const resp = await global.fetch(url)
+    const { connected, current, next, urgent, wantToFinish } = await resp.json()
+    return {
+      roomname,
+      username,
+      lastServerUpdate: {
+        current,
+        wantToFinish,
+        next,
+        urgent
+      },
+      connected,
+      currentImagePath: getCurrentImagePath(wantToFinish, current),
+      queueImagePath: getQueueImagePath(urgent, next)
+    }
+  },
+  components: {
+    Layout
+  },
+  data () {
+    return {
+      roomname: 'error:roomname not set',
+      username: null,
+      inputUsername: '',
+      sinceCounter: 0,
+      connected: [],
+      currentImagePath: '',
+      queueImagePath: '',
+      socket: null,
+      lastServerUpdate: {
+        current: '',
+        wantToFinish: '',
+        next: '',
+        urgent: ''
+      }
+    }
+  },
+  methods: {
+    connect () {
+      const username = this.get('inputUsername')
+      const roomname = this.get('roomname')
+      this.get('socket').emit('transfer name', { username, roomname })
+    },
+    onClickBtnNext () {
+      const { username, roomname } = this.get()
+      this.get('socket').emit('ask for next', { username, roomname })
+    },
+    onClickBtnUrgent () {
+      const { username, roomname } = this.get()
+      this.get('socket').emit('ask for urgent', { username, roomname })
+    },
+    onClickBtnTookOver (username = this.get('username')) {
+      const roomname = this.get('roomname')
+      this.get('socket').emit('took over', { username, roomname })
+    },
+    onClickBtnFinished () {
+      const { username, roomname } = this.get()
+      this.get('socket').emit('want to finish', { username, roomname })
+    },
+    updateStatus (data) {
+      const newData = {
+        lastServerUpdate: data,
+        connected: data.connected,
+        currentImagePath: getCurrentImagePath(data.wantToFinish, data.current),
+        queueImagePath: getQueueImagePath(data.urgent, data.next)
+      }
+      if (data.resetTime) {
+        newData.sinceCounter = 0
+      }
+      this.set(newData)
+    }
+  },
+  oncreate () {
+    const socket = io()
+    this.set({ socket })
+
+    socket.on('update status', this.updateStatus.bind(this))
+
+    socket.on('user accepted', username => {
+      this.set({ username })
+      Cookies.set('username', username, { expires: 365 })
+    })
+
+    socket.on('user join failed', error => {
+      this.set({ username: '' })
+      Cookies.set('username', '')
+      window.alert(error)
+    })
+
+    setInterval(() => {
+      this.set({ sinceCounter: this.get('sinceCounter') + 1 })
+    }, 1000)
+
+    const { username, roomname } = this.get()
+    if (username) {
+      this.get('socket').emit('rejoin user', { username, roomname })
+    }
+  }
+}
+</script>
