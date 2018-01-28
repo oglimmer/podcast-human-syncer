@@ -5,15 +5,21 @@ const capitalize = require('capitalize')
 const { SISMEMBER, SADD, SREM, MGET, SMEMBERS, GET, SET, MSET } = require('./Redis')
 
 async function updateStatus (socket, resetTime, roomname) {
-  const [current, next, urgent, wantToFinish] = await MGET(
-    `${roomname}:current`, `${roomname}:next`, `${roomname}:urgent`, `${roomname}:wantToFinish`)
+  const [current, next, urgent, wantToFinish, lastTakerOver] = await MGET(`${roomname}:current`,
+    `${roomname}:next`, `${roomname}:urgent`, `${roomname}:wantToFinish`,
+    `${roomname}:lastTakerOver`)
   const connected = await SMEMBERS(`${roomname}:connectedUsers`)
+  var secondsSinceLastTakerOver = Math.floor((Date.now() - new Date(lastTakerOver).getTime()) / 1000)
+  if (resetTime) {
+    secondsSinceLastTakerOver = 0
+    await SET(`${roomname}:lastTakerOver`, new Date().toUTCString())
+  }
   const emitData = {
     current,
     next,
     urgent,
     wantToFinish,
-    resetTime,
+    secondsSinceLastTakerOver,
     connected
   }
   socket.broadcast.emit('update status', emitData)

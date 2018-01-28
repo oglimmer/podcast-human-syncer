@@ -173,16 +173,13 @@ export default {
       this.get('socket').emit('want to finish', { username, roomname })
     },
     updateStatus (data) {
-      const newData = {
+      this.set({
         lastServerUpdate: data,
         connected: data.connected,
         currentImagePath: getCurrentImagePath(data.wantToFinish, data.current),
-        queueImagePath: getQueueImagePath(data.urgent, data.next)
-      }
-      if (data.resetTime) {
-        newData.sinceCounter = 0
-      }
-      this.set(newData)
+        queueImagePath: getQueueImagePath(data.urgent, data.next),
+        sinceCounter: data.secondsSinceLastTakerOver
+      })
     }
   },
   oncreate () {
