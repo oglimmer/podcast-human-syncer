@@ -6,11 +6,17 @@ export async function get (req, res) {
   const { username } = req.query
 
   if (username) {
-    await Redis.SADD(`${roomname}:connectedUsers`, capitalize(username))
+    await Redis.SADD(`${roomname}:connected`, capitalize(username))
   }
-  const [current, next, urgent, wantToFinish] = await Redis.MGET(
-    `${roomname}:current`, `${roomname}:next`, `${roomname}:urgent`, `${roomname}:wantToFinish`)
-  const connected = await Redis.SMEMBERS(`${roomname}:connectedUsers`)
+  const [current, next, urgent, wantToFinish, lastTakerOverInSecs] = await Redis.MGET(
+    `${roomname}:current`,
+    `${roomname}:next`,
+    `${roomname}:urgent`,
+    `${roomname}:wantToFinish`,
+    `${roomname}:lastTakerOver`)
+  const connected = await Redis.SMEMBERS(`${roomname}:connected`)
+  const totalTime = await Redis.HGETALL(`${roomname}:totalTime`)
+  const lastTakerOver = Math.floor((Date.now() - new Date(lastTakerOverInSecs).getTime()) / 1000)
 
   res.set({
     'Content-Type': 'application/json'
@@ -20,6 +26,8 @@ export async function get (req, res) {
     current,
     wantToFinish,
     next,
-    urgent
+    urgent,
+    lastTakerOver,
+    totalTime
   }))
 }

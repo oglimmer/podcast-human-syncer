@@ -11,19 +11,22 @@
       connected:
       {{#each connected as userConnected, index }}
         {{#if index > 0}}, {{/if}}
-        <span class='userSpan' on:click='onClickBtnTookOver(userConnected)'>{{userConnected}}</span>
+        <span class='userSpan' on:click='onClickBtnTookOver(userConnected)'>
+          {{userConnected}}
+          ({{totalTime && totalTime[userConnected] ? totalTime[userConnected] : 0}}s)
+        </span>
       {{/each}}
       <br/>
-      {{#if lastServerUpdate.current !== username && lastServerUpdate.next === '' && lastServerUpdate.urgent === ''}}
+      {{#if current !== username && next === '' && urgent === ''}}
         <button class='action' on:click="onClickBtnNext()">I'm next</button>
       {{/if}}
-      {{#if lastServerUpdate.current !== username && lastServerUpdate.urgent !== username}}
+      {{#if current !== username && urgent !== username}}
         <button class='action' on:click="onClickBtnUrgent()">NOW!!!</button>
       {{/if}}
-      {{#if lastServerUpdate.current !== username}}
+      {{#if current !== username}}
         <button class='action' on:click="onClickBtnTookOver()">I took over</button>
       {{/if}}
-      {{#if lastServerUpdate.current === username && lastServerUpdate.wantToFinish !== username}}
+      {{#if current === username && wantToFinish !== username}}
         <button class='action' on:click="onClickBtnFinished()">I want to finish</button>
       {{/if}}
     </div>
@@ -36,7 +39,7 @@
       {{/if}}
     </div>
     <div>
-      since {{sinceCounter}} secs.
+      since {{lastTakerOver}} secs.
     </div>
 
   {{else}}
@@ -114,19 +117,17 @@ export default {
       url += `?username=${username}`
     }
     const resp = await global.fetch(url)
-    const { connected, current, next, urgent, wantToFinish } = await resp.json()
+    const { connected, current, next, urgent, wantToFinish, lastTakerOver, totalTime } = await resp.json()
     return {
       roomname,
       username,
-      lastServerUpdate: {
-        current,
-        wantToFinish,
-        next,
-        urgent
-      },
+      current,
+      wantToFinish,
+      next,
+      urgent,
       connected,
-      currentImagePath: getCurrentImagePath(wantToFinish, current),
-      queueImagePath: getQueueImagePath(urgent, next)
+      lastTakerOver,
+      totalTime
     }
   },
   components: {
@@ -134,26 +135,29 @@ export default {
   },
   data () {
     return {
+      // pure client-side
+      socket: null,
+      inputUsername: '',
+      // from request/cookie
       roomname: 'error:roomname not set',
       username: null,
-      inputUsername: '',
-      sinceCounter: 0,
+      // from DB
+      lastTakerOver: 0,
+      totalTime: {},
       connected: [],
-      currentImagePath: '',
-      queueImagePath: '',
-      socket: null,
-      lastServerUpdate: {
-        current: '',
-        wantToFinish: '',
-        next: '',
-        urgent: ''
-      }
+      current: '',
+      wantToFinish: '',
+      next: '',
+      urgent: ''
     }
+  },
+  computed: {
+    currentImagePath: (wantToFinish, current) => getCurrentImagePath(wantToFinish, current),
+    queueImagePath: (urgent, next) => getQueueImagePath(urgent, next)
   },
   methods: {
     connect () {
-      const username = this.get('inputUsername')
-      const roomname = this.get('roomname')
+      const { inputUsername: username, roomname } = this.get()
       this.get('socket').emit('transfer name', { username, roomname })
     },
     onClickBtnNext () {
@@ -171,26 +175,20 @@ export default {
     onClickBtnFinished () {
       const { username, roomname } = this.get()
       this.get('socket').emit('want to finish', { username, roomname })
-    },
-    updateStatus (data) {
-      this.set({
-        lastServerUpdate: data,
-        connected: data.connected,
-        currentImagePath: getCurrentImagePath(data.wantToFinish, data.current),
-        queueImagePath: getQueueImagePath(data.urgent, data.next),
-        sinceCounter: data.secondsSinceLastTakerOver
-      })
     }
   },
   oncreate () {
     const socket = io()
     this.set({ socket })
 
-    socket.on('update status', this.updateStatus.bind(this))
+    socket.on('update status', data => {
+      console.log(data)
+      this.set(data)
+    })
 
-    socket.on('user accepted', username => {
-      this.set({ username })
-      Cookies.set('username', username, { expires: 365 })
+    socket.on('user accepted', data => {
+      this.set(data)
+      Cookies.set('username', data.username, { expires: 365 })
     })
 
     socket.on('user join failed', error => {
@@ -200,7 +198,7 @@ export default {
     })
 
     setInterval(() => {
-      this.set({ sinceCounter: this.get('sinceCounter') + 1 })
+      this.set({ lastTakerOver: this.get('lastTakerOver') + 1 })
     }, 1000)
 
     const { username, roomname } = this.get()

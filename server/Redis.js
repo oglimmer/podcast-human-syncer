@@ -10,6 +10,9 @@ var GET = null
 var MGET = null
 var SET = null
 var MSET = null
+var HGET = null
+var HSET = null
+var HGETALL = null
 
 if (process.env.NODE_ENV !== 'test') {
   const client = redis.createClient()
@@ -21,6 +24,9 @@ if (process.env.NODE_ENV !== 'test') {
   MGET = promisify(client.MGET).bind(client)
   SET = promisify(client.SET).bind(client)
   MSET = promisify(client.MSET).bind(client)
+  HGET = promisify(client.HGET).bind(client)
+  HSET = promisify(client.HSET).bind(client)
+  HGETALL = promisify(client.HGETALL).bind(client)
 }
 
 module.exports = {
@@ -31,5 +37,8 @@ module.exports = {
   GET,
   MGET,
   SET,
-  MSET
+  MSET,
+  HGET,
+  HSET,
+  HGETALL
 }

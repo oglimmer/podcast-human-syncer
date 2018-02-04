@@ -2,39 +2,86 @@
 const ioFactory = require('socket.io')
 const capitalize = require('capitalize')
 
-const { SISMEMBER, SADD, SREM, MGET, SMEMBERS, GET, SET, MSET } = require('./Redis')
+const DEBUG = false
 
-async function updateStatus (socket, resetTime, roomname) {
-  const [current, next, urgent, wantToFinish, lastTakerOver] = await MGET(`${roomname}:current`,
-    `${roomname}:next`, `${roomname}:urgent`, `${roomname}:wantToFinish`,
-    `${roomname}:lastTakerOver`)
-  const connected = await SMEMBERS(`${roomname}:connectedUsers`)
-  var secondsSinceLastTakerOver = Math.floor((Date.now() - new Date(lastTakerOver).getTime()) / 1000)
-  if (resetTime) {
-    secondsSinceLastTakerOver = 0
-    await SET(`${roomname}:lastTakerOver`, new Date().toUTCString())
+const { SMEMBERS, SISMEMBER, SADD, SREM, GET, MGET, SET, MSET, HGET, HSET, HGETALL } = require('./Redis')
+
+const RECIPIENT_CURRENT = 1
+const RECIPIENT_OTHERS = 2
+const RECIPIENT_ALL = 3
+
+const CURRENT = 'current'
+const NEXT = 'next'
+const URGENT = 'urgent'
+const WANT_OF_FINISH = 'wantToFinish'
+const LAST_TAKE_OVER = 'lastTakerOver'
+const CONNECTED = 'connected'
+const TOTAL_TIME = 'totalTime'
+
+const FIELDS_SIMPLE = [CURRENT, NEXT, URGENT, WANT_OF_FINISH, LAST_TAKE_OVER]
+// SET: CONNECTED
+// MAP: TOTAL_TIME
+
+function log (functionName, output) {
+  if (DEBUG) {
+    console.log(`****************************** ${functionName}:: ${output}`)
   }
-  const emitData = {
-    current,
-    next,
-    urgent,
-    wantToFinish,
-    secondsSinceLastTakerOver,
-    connected
+}
+
+function arrayToObject (arrayKeys, arrayValues) {
+  const newObj = {}
+  if (arrayKeys.length !== arrayValues.length) {
+    throw new Error('input arrays have different length')
   }
-  socket.broadcast.emit('update status', emitData)
-  socket.emit('update status', emitData)
+  let i = 0
+  arrayKeys.forEach((k) => { newObj[k] = arrayValues[i++] })
+  return newObj
+}
+
+function contains (haystack, needle) {
+  return !!haystack.find(e => e === needle)
+}
+
+function updateStatus (socket, recipients, emitData) {
+  if (recipients & RECIPIENT_CURRENT) {
+    socket.emit('update status', emitData)
+  }
+  if (recipients & RECIPIENT_OTHERS) {
+    socket.broadcast.emit('update status', emitData)
+  }
+}
+
+async function getUpdateObject (roomname, fieldsToUpdate) {
+  const fieldsToUpdateSimple = fieldsToUpdate.filter(e => contains(FIELDS_SIMPLE, e))
+  const simpleFieldsToLoad = fieldsToUpdateSimple.map(e => `${roomname}:${e}`)
+  let emitData = {}
+  if (simpleFieldsToLoad.length > 0) {
+    emitData = arrayToObject(fieldsToUpdateSimple, await MGET(...simpleFieldsToLoad))
+  }
+  if (contains(fieldsToUpdate, CONNECTED)) {
+    emitData.connected = await SMEMBERS(`${roomname}:${CONNECTED}`)
+  }
+  if (contains(fieldsToUpdate, TOTAL_TIME)) {
+    emitData.totalTime = await HGETALL(`${roomname}:${TOTAL_TIME}`)
+  }
+  if (emitData.lastTakerOver) {
+    emitData.lastTakerOver = Math.floor((Date.now() - new Date(emitData.lastTakerOver).getTime()) / 1000)
+  }
+  return emitData
 }
 
 async function transferName (socket, { username, roomname }) {
   const nameCaped = capitalize(username)
-  // console.log(`transfer name:: ${nameCaped}`)
-  if (!await SISMEMBER(`${roomname}:connectedUsers`, nameCaped)) {
+  log('transferName', `${nameCaped}:${roomname}`)
+  if (!await SISMEMBER(`${roomname}:${CONNECTED}`, nameCaped)) {
     socket.username = nameCaped
     socket.roomname = roomname
-    await SADD(`${roomname}:connectedUsers`, nameCaped)
-    socket.emit('user accepted', nameCaped)
-    updateStatus(socket, false, roomname)
+    await SADD(`${roomname}:${CONNECTED}`, nameCaped)
+    socket.emit('user accepted', Object.assign({},
+      { username: nameCaped },
+      await getUpdateObject(roomname, [CURRENT, NEXT, URGENT, WANT_OF_FINISH, LAST_TAKE_OVER, CONNECTED, TOTAL_TIME])
+    ))
+    updateStatus(socket, RECIPIENT_OTHERS, await getUpdateObject(roomname, [CONNECTED]))
   } else {
     socket.emit('user join failed', 'Name already exists')
   }
@@ -42,53 +89,67 @@ async function transferName (socket, { username, roomname }) {
 
 async function rejoinUser (socket, { username, roomname }) {
   const nameCaped = capitalize(username)
-  // console.log(`rejoin user:: ${nameCaped}`)
+  log('rejoin user', `${nameCaped}:${roomname}`)
   socket.username = nameCaped
   socket.roomname = roomname
-  socket.emit('user accepted', nameCaped)
-  await SADD(`${roomname}:connectedUsers`, nameCaped)
-  updateStatus(socket, false, roomname)
+  await SADD(`${roomname}:${CONNECTED}`, nameCaped)
+  socket.emit('user accepted', Object.assign({},
+    { username: nameCaped },
+    await getUpdateObject(roomname, [CURRENT, NEXT, URGENT, WANT_OF_FINISH, LAST_TAKE_OVER, CONNECTED, TOTAL_TIME])
+  ))
+  updateStatus(socket, RECIPIENT_OTHERS, await getUpdateObject(roomname, [CONNECTED]))
 }
 
 async function disconnect (socket) {
-  // console.log(`disconnect:: ${socket.username} / ${socket.roomname}`)
+  log('disconnect', `${socket.username}:${socket.roomname}`)
   if (socket.username) {
-    await SREM(`${socket.roomname}:connectedUsers`, socket.username)
+    await SREM(`${socket.roomname}:${CONNECTED}`, socket.username)
   }
-  updateStatus(socket, false, socket.roomname)
+  updateStatus(socket, RECIPIENT_OTHERS, await getUpdateObject(socket.roomname, [CONNECTED]))
 }
 
 async function tookOver (socket, { username, roomname }) {
-  // console.log(`took over:: ${username}`)
-  if (await GET(`${roomname}:current`) !== username) {
-    await MSET(`${roomname}:current`, username,
-      `${roomname}:next`, '', `${roomname}:urgent`, '', `${roomname}:wantToFinish`, '')
-    updateStatus(socket, true, roomname)
+  log('took over', `${username}:${roomname}`)
+  const [ currentUser, lastTakeOver ] = await MGET(`${roomname}:${CURRENT}`, `${roomname}:${LAST_TAKE_OVER}`)
+  if (currentUser !== username) {
+    await MSET(
+      `${roomname}:${CURRENT}`, username,
+      `${roomname}:${NEXT}`, '',
+      `${roomname}:${URGENT}`, '',
+      `${roomname}:${WANT_OF_FINISH}`, '',
+      `${roomname}:${LAST_TAKE_OVER}`, new Date().toUTCString())
+    if (currentUser) {
+      const lastTotalTimeForUser = await HGET(`${roomname}:${TOTAL_TIME}`, `${currentUser}`)
+      const timeToAdd = Math.floor((Date.now() - new Date(lastTakeOver).getTime()) / 1000)
+      const newTotalTime = lastTotalTimeForUser ? parseInt(lastTotalTimeForUser) + timeToAdd : timeToAdd
+      await HSET(`${roomname}:${TOTAL_TIME}`, `${currentUser}`, newTotalTime)
+    }
+    updateStatus(socket, RECIPIENT_ALL, await getUpdateObject(roomname, [TOTAL_TIME, ...FIELDS_SIMPLE]))
   }
 }
 
 async function wantToFinish (socket, { username, roomname }) {
-  // console.log(`want to finish:: ${username}`)
-  if (await GET(`${roomname}:current`) === username) {
-    await SET(`${roomname}:wantToFinish`, username)
-    updateStatus(socket, false, roomname)
+  log('ask for finish', `${username}:${roomname}`)
+  if (await GET(`${roomname}:${CURRENT}`) === username) {
+    await SET(`${roomname}:${WANT_OF_FINISH}`, username)
+    updateStatus(socket, RECIPIENT_ALL, await getUpdateObject(roomname, [WANT_OF_FINISH]))
   }
 }
 
 async function askForNext (socket, { username, roomname }) {
-  // console.log(`ask for next:: ${username}`)
-  const [next, urgent, current] = await MGET(`${roomname}:next`, `${roomname}:urgent`, `${roomname}:current`)
+  log('ask for next', `${username}:${roomname}`)
+  const [next, urgent, current] = await MGET(`${roomname}:${NEXT}`, `${roomname}:${URGENT}`, `${roomname}:${CURRENT}`)
   if (next === '' && urgent === '' && current !== username) {
-    await SET(`${roomname}:next`, username)
-    updateStatus(socket, false, roomname)
+    await SET(`${roomname}:${NEXT}`, username)
+    updateStatus(socket, RECIPIENT_ALL, await getUpdateObject(roomname, [NEXT]))
   }
 }
 
 async function askForUrgent (socket, { username, roomname }) {
-  // console.log(`ask for urgent:: ${username}`)
-  if (await GET(`${roomname}:current`) !== username) {
-    await MSET(`${roomname}:urgent`, username, `${roomname}:next`, '')
-    updateStatus(socket, false, roomname)
+  log('ask for urgent', `${username}:${roomname}`)
+  if (await GET(`${roomname}:${CURRENT}`) !== username) {
+    await MSET(`${roomname}:${URGENT}`, username, `${roomname}:${NEXT}`, '')
+    updateStatus(socket, RECIPIENT_ALL, await getUpdateObject(roomname, [NEXT, URGENT]))
   }
 }
 
