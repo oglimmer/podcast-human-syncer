@@ -9,7 +9,7 @@
       {{#each connected as userConnected, index }}
         <div>
           <span class='userSpan' on:click='onClickBtnTookOver(userConnected)'>
-            {{userConnected}} # {{username}}
+            {{userConnected}}
           </span>
           ({{totalTime && totalTime[userConnected] ? totalTime[userConnected] : 0}}s)
           {{#if userConnected == username}}
