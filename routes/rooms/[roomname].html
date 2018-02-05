@@ -5,16 +5,19 @@
 <Layout page='rooms'>
 
   {{#if username}}
-
     <div>
-      Your name: {{username}} -
-      connected:
       {{#each connected as userConnected, index }}
-        {{#if index > 0}}, {{/if}}
-        <span class='userSpan' on:click='onClickBtnTookOver(userConnected)'>
-          {{userConnected}}
+        <div>
+          <span class='userSpan' on:click='onClickBtnTookOver(userConnected)'>
+            {{userConnected}}
+          </span>
           ({{totalTime && totalTime[userConnected] ? totalTime[userConnected] : 0}}s)
-        </span>
+          {{#if userConnected != username && chatMessages[userConnected]}}
+          // {{chatMessages[userConnected]}}
+          {{else}}
+          <input bind:value='inputChat' style='width:400px'/>
+          {{/if}}
+        </div>
       {{/each}}
       <br/>
       {{#if current !== username && next === '' && urgent === ''}}
@@ -39,7 +42,7 @@
       {{/if}}
     </div>
     <div>
-      since {{lastTakerOver}} secs.
+      since {{lastTakerOver}} secs. <button on:click='onClickBtnReset()'>reset all timers</button>
     </div>
 
   {{else}}
@@ -55,16 +58,10 @@
 </Layout>
 
 <style>
-  div {
-    font-family: Arial;
-    padding-top: 20px;
-  }
-
   button.action {
-    font-family: Arial;
     font-size: 30px;
-    margin-top: 30px;
-    padding:15px;
+    margin-bottom: 10px;
+    padding: 12px;
   }
 
   .userSpan {
@@ -117,7 +114,7 @@ export default {
       url += `?username=${username}`
     }
     const resp = await global.fetch(url)
-    const { connected, current, next, urgent, wantToFinish, lastTakerOver, totalTime } = await resp.json()
+    const { connected, current, next, urgent, wantToFinish, lastTakerOver, totalTime, chatMessages } = await resp.json()
     return {
       roomname,
       username,
@@ -127,7 +124,9 @@ export default {
       urgent,
       connected,
       lastTakerOver,
-      totalTime
+      totalTime,
+      chatMessages,
+      inputChat: chatMessages[username]
     }
   },
   components: {
@@ -138,6 +137,7 @@ export default {
       // pure client-side
       socket: null,
       inputUsername: '',
+      inputChat: '',
       // from request/cookie
       roomname: 'error:roomname not set',
       username: null,
@@ -148,7 +148,9 @@ export default {
       current: '',
       wantToFinish: '',
       next: '',
-      urgent: ''
+      urgent: '',
+      // from server
+      chatMessages: {}
     }
   },
   computed: {
@@ -175,6 +177,12 @@ export default {
     onClickBtnFinished () {
       const { username, roomname } = this.get()
       this.get('socket').emit('want to finish', { username, roomname })
+    },
+    onClickBtnReset () {
+      if (window.confirm('Really!??!?!')) {
+        const { roomname } = this.get()
+        this.get('socket').emit('reset all timers', { roomname })
+      }
     }
   },
   oncreate () {
@@ -200,6 +208,11 @@ export default {
     setInterval(() => {
       this.set({ lastTakerOver: this.get('lastTakerOver') + 1 })
     }, 1000)
+
+    this.observe('inputChat', inputChat => {
+      const { username, roomname } = this.get()
+      this.get('socket').emit('change chat', { inputChat, username, roomname })
+    })
 
     const { username, roomname } = this.get()
     if (username) {

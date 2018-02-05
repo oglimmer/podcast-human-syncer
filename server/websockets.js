@@ -2,45 +2,13 @@
 const ioFactory = require('socket.io')
 const capitalize = require('capitalize')
 
-const DEBUG = false
+const { SISMEMBER, SADD, SREM, GET, MGET, SET, MSET, HGET, HSET, DEL } = require('./Redis')
 
-const { SMEMBERS, SISMEMBER, SADD, SREM, GET, MGET, SET, MSET, HGET, HSET, HGETALL } = require('./Redis')
-
-const RECIPIENT_CURRENT = 1
-const RECIPIENT_OTHERS = 2
-const RECIPIENT_ALL = 3
-
-const CURRENT = 'current'
-const NEXT = 'next'
-const URGENT = 'urgent'
-const WANT_OF_FINISH = 'wantToFinish'
-const LAST_TAKE_OVER = 'lastTakerOver'
-const CONNECTED = 'connected'
-const TOTAL_TIME = 'totalTime'
-
-const FIELDS_SIMPLE = [CURRENT, NEXT, URGENT, WANT_OF_FINISH, LAST_TAKE_OVER]
-// SET: CONNECTED
-// MAP: TOTAL_TIME
-
-function log (functionName, output) {
-  if (DEBUG) {
-    console.log(`****************************** ${functionName}:: ${output}`)
-  }
-}
-
-function arrayToObject (arrayKeys, arrayValues) {
-  const newObj = {}
-  if (arrayKeys.length !== arrayValues.length) {
-    throw new Error('input arrays have different length')
-  }
-  let i = 0
-  arrayKeys.forEach((k) => { newObj[k] = arrayValues[i++] })
-  return newObj
-}
-
-function contains (haystack, needle) {
-  return !!haystack.find(e => e === needle)
-}
+const log = require('./log')
+const getUpdateObject = require('./getUpdateObject')
+const { RECIPIENT_CURRENT, RECIPIENT_OTHERS, RECIPIENT_ALL,
+  FIELDS_SIMPLE,
+  CURRENT, NEXT, URGENT, WANT_OF_FINISH, LAST_TAKE_OVER, CONNECTED, TOTAL_TIME, CHAT_MESSAGES } = require('./constants')
 
 function updateStatus (socket, recipients, emitData) {
   if (recipients & RECIPIENT_CURRENT) {
@@ -49,25 +17,6 @@ function updateStatus (socket, recipients, emitData) {
   if (recipients & RECIPIENT_OTHERS) {
     socket.broadcast.emit('update status', emitData)
   }
-}
-
-async function getUpdateObject (roomname, fieldsToUpdate) {
-  const fieldsToUpdateSimple = fieldsToUpdate.filter(e => contains(FIELDS_SIMPLE, e))
-  const simpleFieldsToLoad = fieldsToUpdateSimple.map(e => `${roomname}:${e}`)
-  let emitData = {}
-  if (simpleFieldsToLoad.length > 0) {
-    emitData = arrayToObject(fieldsToUpdateSimple, await MGET(...simpleFieldsToLoad))
-  }
-  if (contains(fieldsToUpdate, CONNECTED)) {
-    emitData.connected = await SMEMBERS(`${roomname}:${CONNECTED}`)
-  }
-  if (contains(fieldsToUpdate, TOTAL_TIME)) {
-    emitData.totalTime = await HGETALL(`${roomname}:${TOTAL_TIME}`)
-  }
-  if (emitData.lastTakerOver) {
-    emitData.lastTakerOver = Math.floor((Date.now() - new Date(emitData.lastTakerOver).getTime()) / 1000)
-  }
-  return emitData
 }
 
 async function transferName (socket, { username, roomname }) {
@@ -153,6 +102,18 @@ async function askForUrgent (socket, { username, roomname }) {
   }
 }
 
+async function changeChat (socket, { inputChat, username, roomname }) {
+  log('change chat', `${inputChat}:${roomname}`)
+  await HSET(`${roomname}:${CHAT_MESSAGES}`, username, inputChat)
+  updateStatus(socket, RECIPIENT_OTHERS, await getUpdateObject(roomname, [CHAT_MESSAGES]))
+}
+
+async function resetAllRimers (socket, { roomname }) {
+  await DEL(`${roomname}:${TOTAL_TIME}`)
+  await SET(`${roomname}:${LAST_TAKE_OVER}`, new Date().toUTCString())
+  updateStatus(socket, RECIPIENT_ALL, await getUpdateObject(roomname, [TOTAL_TIME, LAST_TAKE_OVER]))
+}
+
 module.exports = server => {
   ioFactory(server).on('connection', socket => {
     socket.on('transfer name', data => transferName(socket, data))
@@ -162,5 +123,7 @@ module.exports = server => {
     socket.on('want to finish', data => wantToFinish(socket, data))
     socket.on('ask for next', data => askForNext(socket, data))
     socket.on('ask for urgent', data => askForUrgent(socket, data))
+    socket.on('change chat', data => changeChat(socket, data))
+    socket.on('reset all timers', data => resetAllRimers(socket, data))
   })
 }

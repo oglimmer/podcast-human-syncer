@@ -1,33 +1,20 @@
 import Redis from '../../../server/Redis'
 import capitalize from 'capitalize'
 
+import getUpdateObject from '../../../server/getUpdateObject'
+import { FIELDS_ALL, CONNECTED } from '../../../server/constants'
+
 export async function get (req, res) {
   const { roomname } = req.params
   const { username } = req.query
 
   if (username) {
-    await Redis.SADD(`${roomname}:connected`, capitalize(username))
+    await Redis.SADD(`${roomname}:${CONNECTED}`, capitalize(username))
   }
-  const [current, next, urgent, wantToFinish, lastTakerOverInSecs] = await Redis.MGET(
-    `${roomname}:current`,
-    `${roomname}:next`,
-    `${roomname}:urgent`,
-    `${roomname}:wantToFinish`,
-    `${roomname}:lastTakerOver`)
-  const connected = await Redis.SMEMBERS(`${roomname}:connected`)
-  const totalTime = await Redis.HGETALL(`${roomname}:totalTime`)
-  const lastTakerOver = Math.floor((Date.now() - new Date(lastTakerOverInSecs).getTime()) / 1000)
+  const returnData = await getUpdateObject(roomname, FIELDS_ALL)
 
   res.set({
     'Content-Type': 'application/json'
   })
-  res.end(JSON.stringify({
-    connected,
-    current,
-    wantToFinish,
-    next,
-    urgent,
-    lastTakerOver,
-    totalTime
-  }))
+  res.end(JSON.stringify(returnData))
 }

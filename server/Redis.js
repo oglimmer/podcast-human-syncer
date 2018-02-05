@@ -13,6 +13,7 @@ var MSET = null
 var HGET = null
 var HSET = null
 var HGETALL = null
+var DEL = null
 
 if (process.env.NODE_ENV !== 'test') {
   const client = redis.createClient()
@@ -27,6 +28,7 @@ if (process.env.NODE_ENV !== 'test') {
   HGET = promisify(client.HGET).bind(client)
   HSET = promisify(client.HSET).bind(client)
   HGETALL = promisify(client.HGETALL).bind(client)
+  DEL = promisify(client.DEL).bind(client)
 }
 
 module.exports = {
@@ -40,5 +42,6 @@ module.exports = {
   MSET,
   HGET,
   HSET,
-  HGETALL
+  HGETALL,
+  DEL
 }
