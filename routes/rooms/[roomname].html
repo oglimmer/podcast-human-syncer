@@ -9,13 +9,13 @@
       {{#each connected as userConnected, index }}
         <div>
           <span class='userSpan' on:click='onClickBtnTookOver(userConnected)'>
-            {{userConnected}}
+            {{userConnected}} # {{username}}
           </span>
           ({{totalTime && totalTime[userConnected] ? totalTime[userConnected] : 0}}s)
-          {{#if userConnected != username && chatMessages[userConnected]}}
-          // {{chatMessages[userConnected]}}
-          {{else}}
-          <input bind:value='inputChat' style='width:400px'/>
+          {{#if userConnected == username}}
+            <input bind:value='inputChat' style='width:400px'/>
+          {{elseif chatMessages && chatMessages[userConnected]}}
+            {{chatMessages[userConnected]}}
           {{/if}}
         </div>
       {{/each}}
@@ -126,7 +126,7 @@ export default {
       lastTakerOver,
       totalTime,
       chatMessages,
-      inputChat: chatMessages[username]
+      inputChat: chatMessages ? chatMessages[username] : ''
     }
   },
   components: {

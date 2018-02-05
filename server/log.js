@@ -1,5 +1,5 @@
 
-const DEBUG = true
+const DEBUG = false
 
 module.exports = (functionName, output) => {
   if (DEBUG) {
