@@ -117,7 +117,7 @@ async function resetAllRimers (socket, { roomname }) {
 }
 
 module.exports = server => {
-  ioFactory(server).on('connection', socket => {
+  ioFactory(server, { serveClient: false }).on('connection', socket => {
     socket.on('transfer name', data => transferName(socket, data))
     socket.on('rejoin user', data => rejoinUser(socket, data))
     socket.on('disconnect', () => disconnect(socket))
