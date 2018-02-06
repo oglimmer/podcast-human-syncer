@@ -96,6 +96,13 @@ function getQueueImagePath (urgent, next) {
   return ''
 }
 
+function getChatMessage (chatMessages, username) {
+  if (chatMessages && chatMessages[username]) {
+    return chatMessages[username]
+  }
+  return ''
+}
+
 export default {
   async preload (req) {
     const { roomname } = req.params
@@ -105,8 +112,8 @@ export default {
       username = name
     } else if (req.cookies && req.cookies.username) {
       username = req.cookies.username
-    } else if (Cookies.get('username')) {
-      username = Cookies.get('username')
+    } else if (Cookies.get(`${roomname}:${username}`)) {
+      username = Cookies.get(`${roomname}:${username}`)
     }
 
     var url = `/api/rooms/${roomname}`
@@ -126,7 +133,7 @@ export default {
       lastTakerOver,
       totalTime,
       chatMessages,
-      inputChat: chatMessages ? chatMessages[username] : ''
+      inputChat: getChatMessage(chatMessages, username)
     }
   },
   components: {
@@ -186,22 +193,22 @@ export default {
     }
   },
   oncreate () {
+    const { roomname } = this.get()
     const socket = io()
     this.set({ socket })
 
     socket.on('update status', data => {
-      console.log(data)
       this.set(data)
     })
 
     socket.on('user accepted', data => {
       this.set(data)
-      Cookies.set('username', data.username, { expires: 365 })
+      Cookies.set(`${roomname}:${username}`, data.username, { expires: 365 })
     })
 
     socket.on('user join failed', error => {
       this.set({ username: '' })
-      Cookies.set('username', '')
+      Cookies.set(`${roomname}:${username}`, '')
       window.alert(error)
     })
 
@@ -210,11 +217,11 @@ export default {
     }, 1000)
 
     this.observe('inputChat', inputChat => {
-      const { username, roomname } = this.get()
+      const { username } = this.get()
       this.get('socket').emit('change chat', { inputChat, username, roomname })
     })
 
-    const { username, roomname } = this.get()
+    const { username } = this.get()
     if (username) {
       this.get('socket').emit('rejoin user', { username, roomname })
     }

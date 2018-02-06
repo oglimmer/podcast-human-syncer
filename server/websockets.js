@@ -10,12 +10,12 @@ const { RECIPIENT_CURRENT, RECIPIENT_OTHERS, RECIPIENT_ALL,
   FIELDS_SIMPLE,
   CURRENT, NEXT, URGENT, WANT_OF_FINISH, LAST_TAKE_OVER, CONNECTED, TOTAL_TIME, CHAT_MESSAGES } = require('./constants')
 
-function updateStatus (socket, recipients, emitData) {
+function updateStatus (socket, roomname, recipients, emitData) {
   if (recipients & RECIPIENT_CURRENT) {
     socket.emit('update status', emitData)
   }
   if (recipients & RECIPIENT_OTHERS) {
-    socket.broadcast.emit('update status', emitData)
+    socket.to(roomname).emit('update status', emitData)
   }
 }
 
@@ -23,6 +23,7 @@ async function transferName (socket, { username, roomname }) {
   const nameCaped = capitalize(username)
   log('transferName', `${nameCaped}:${roomname}`)
   if (!await SISMEMBER(`${roomname}:${CONNECTED}`, nameCaped)) {
+    socket.join(roomname)
     socket.username = nameCaped
     socket.roomname = roomname
     await SADD(`${roomname}:${CONNECTED}`, nameCaped)
@@ -30,7 +31,7 @@ async function transferName (socket, { username, roomname }) {
       { username: nameCaped },
       await getUpdateObject(roomname, [CURRENT, NEXT, URGENT, WANT_OF_FINISH, LAST_TAKE_OVER, CONNECTED, TOTAL_TIME])
     ))
-    updateStatus(socket, RECIPIENT_OTHERS, await getUpdateObject(roomname, [CONNECTED]))
+    updateStatus(socket, roomname, RECIPIENT_OTHERS, await getUpdateObject(roomname, [CONNECTED]))
   } else {
     socket.emit('user join failed', 'Name already exists')
   }
@@ -39,6 +40,7 @@ async function transferName (socket, { username, roomname }) {
 async function rejoinUser (socket, { username, roomname }) {
   const nameCaped = capitalize(username)
   log('rejoin user', `${nameCaped}:${roomname}`)
+  socket.join(roomname)
   socket.username = nameCaped
   socket.roomname = roomname
   await SADD(`${roomname}:${CONNECTED}`, nameCaped)
@@ -46,7 +48,7 @@ async function rejoinUser (socket, { username, roomname }) {
     { username: nameCaped },
     await getUpdateObject(roomname, [CURRENT, NEXT, URGENT, WANT_OF_FINISH, LAST_TAKE_OVER, CONNECTED, TOTAL_TIME])
   ))
-  updateStatus(socket, RECIPIENT_OTHERS, await getUpdateObject(roomname, [CONNECTED]))
+  updateStatus(socket, roomname, RECIPIENT_OTHERS, await getUpdateObject(roomname, [CONNECTED]))
 }
 
 async function disconnect (socket) {
@@ -54,7 +56,7 @@ async function disconnect (socket) {
   if (socket.username) {
     await SREM(`${socket.roomname}:${CONNECTED}`, socket.username)
   }
-  updateStatus(socket, RECIPIENT_OTHERS, await getUpdateObject(socket.roomname, [CONNECTED]))
+  updateStatus(socket, socket.roomname, RECIPIENT_OTHERS, await getUpdateObject(socket.roomname, [CONNECTED]))
 }
 
 async function tookOver (socket, { username, roomname }) {
@@ -73,7 +75,7 @@ async function tookOver (socket, { username, roomname }) {
       const newTotalTime = lastTotalTimeForUser ? parseInt(lastTotalTimeForUser) + timeToAdd : timeToAdd
       await HSET(`${roomname}:${TOTAL_TIME}`, `${currentUser}`, newTotalTime)
     }
-    updateStatus(socket, RECIPIENT_ALL, await getUpdateObject(roomname, [TOTAL_TIME, ...FIELDS_SIMPLE]))
+    updateStatus(socket, roomname, RECIPIENT_ALL, await getUpdateObject(roomname, [TOTAL_TIME, ...FIELDS_SIMPLE]))
   }
 }
 
@@ -81,7 +83,7 @@ async function wantToFinish (socket, { username, roomname }) {
   log('ask for finish', `${username}:${roomname}`)
   if (await GET(`${roomname}:${CURRENT}`) === username) {
     await SET(`${roomname}:${WANT_OF_FINISH}`, username)
-    updateStatus(socket, RECIPIENT_ALL, await getUpdateObject(roomname, [WANT_OF_FINISH]))
+    updateStatus(socket, roomname, RECIPIENT_ALL, await getUpdateObject(roomname, [WANT_OF_FINISH]))
   }
 }
 
@@ -90,7 +92,7 @@ async function askForNext (socket, { username, roomname }) {
   const [next, urgent, current] = await MGET(`${roomname}:${NEXT}`, `${roomname}:${URGENT}`, `${roomname}:${CURRENT}`)
   if (next === '' && urgent === '' && current !== username) {
     await SET(`${roomname}:${NEXT}`, username)
-    updateStatus(socket, RECIPIENT_ALL, await getUpdateObject(roomname, [NEXT]))
+    updateStatus(socket, roomname, RECIPIENT_ALL, await getUpdateObject(roomname, [NEXT]))
   }
 }
 
@@ -98,20 +100,20 @@ async function askForUrgent (socket, { username, roomname }) {
   log('ask for urgent', `${username}:${roomname}`)
   if (await GET(`${roomname}:${CURRENT}`) !== username) {
     await MSET(`${roomname}:${URGENT}`, username, `${roomname}:${NEXT}`, '')
-    updateStatus(socket, RECIPIENT_ALL, await getUpdateObject(roomname, [NEXT, URGENT]))
+    updateStatus(socket, roomname, RECIPIENT_ALL, await getUpdateObject(roomname, [NEXT, URGENT]))
   }
 }
 
 async function changeChat (socket, { inputChat, username, roomname }) {
   log('change chat', `${inputChat}:${roomname}`)
   await HSET(`${roomname}:${CHAT_MESSAGES}`, username, inputChat)
-  updateStatus(socket, RECIPIENT_OTHERS, await getUpdateObject(roomname, [CHAT_MESSAGES]))
+  updateStatus(socket, roomname, RECIPIENT_OTHERS, await getUpdateObject(roomname, [CHAT_MESSAGES]))
 }
 
 async function resetAllRimers (socket, { roomname }) {
   await DEL(`${roomname}:${TOTAL_TIME}`)
   await SET(`${roomname}:${LAST_TAKE_OVER}`, new Date().toUTCString())
-  updateStatus(socket, RECIPIENT_ALL, await getUpdateObject(roomname, [TOTAL_TIME, LAST_TAKE_OVER]))
+  updateStatus(socket, roomname, RECIPIENT_ALL, await getUpdateObject(roomname, [TOTAL_TIME, LAST_TAKE_OVER]))
 }
 
 module.exports = server => {
