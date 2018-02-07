@@ -107,13 +107,14 @@ export default {
   async preload (req) {
     const { roomname } = req.params
     const { name } = req.query
+    const cookieName = `${roomname}_username`
     var username = ''
     if (name) {
       username = name
-    } else if (req.cookies && req.cookies.username) {
-      username = req.cookies.username
-    } else if (Cookies.get(`${roomname}:${username}`)) {
-      username = Cookies.get(`${roomname}:${username}`)
+    } else if (req.cookies && req.cookies[cookieName]) {
+      username = req.cookies[cookieName]
+    } else if (Cookies.get(cookieName)) {
+      username = Cookies.get(cookieName)
     }
 
     var url = `/api/rooms/${roomname}`
@@ -193,7 +194,7 @@ export default {
     }
   },
   oncreate () {
-    const { roomname } = this.get()
+    const { roomname, username } = this.get()
     const socket = io()
     this.set({ socket })
 
@@ -203,12 +204,12 @@ export default {
 
     socket.on('user accepted', data => {
       this.set(data)
-      Cookies.set(`${roomname}:${username}`, data.username, { expires: 365 })
+      Cookies.set(`${roomname}_username`, data.username, { expires: 365 })
     })
 
     socket.on('user join failed', error => {
       this.set({ username: '' })
-      Cookies.set(`${roomname}:${username}`, '')
+      Cookies.remove(`${roomname}_username`)
       window.alert(error)
     })
 
@@ -221,7 +222,6 @@ export default {
       this.get('socket').emit('change chat', { inputChat, username, roomname })
     })
 
-    const { username } = this.get()
     if (username) {
       this.get('socket').emit('rejoin user', { username, roomname })
     }

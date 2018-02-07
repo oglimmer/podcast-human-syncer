@@ -5,7 +5,6 @@ const sapper = require('sapper')
 const staticServe = require('serve-static')
 const websockets = require('./server/websockets')
 const cookieParser = require('cookie-parser')
-const clearNameHandler = require('./server/clearNameHandler')
 
 const app = require('express')()
 const server = require('http').createServer(app)
@@ -22,8 +21,6 @@ global.fetch = (url, opts) => {
 app.use(compression({ threshold: 0 }))
 
 app.use(cookieParser())
-
-app.get('*', clearNameHandler())
 
 app.use(staticServe('assets'))
 
