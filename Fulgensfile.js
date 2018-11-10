@@ -1,10 +1,11 @@
 module.exports = {
 
   config: {
+    SchemaVersion: "1.0.0",
     Name: "podcast-human-syncer",
     Vagrant: {
       Box: "ubuntu/xenial64",
-      Install: "npm docker.io"
+      Install: "nodejs docker.io"
     }
   },
 
