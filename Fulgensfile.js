@@ -17,7 +17,7 @@ module.exports = {
     
     phs: {
       Source: "node",
-      Artifact: "server.js"
+      Start: "server.js"
     }
 
   }

@@ -529,10 +529,10 @@ if [ "$TYPE_SOURCE_PHS" == "docker" ]; then
   #fi
   if [ ! -f ".phsPid" ]; then
     
-    if [ -n "$VERBOSE" ]; then echo "docker run --rm -d $dockerNodeExtRef -p 3000:3000   -v $(pwd):/home/node/exec_env -w /home/node/exec_env node:$TYPE_SOURCE_PHS_VERSION node  ./"; fi
+    if [ -n "$VERBOSE" ]; then echo "docker run --rm -d $dockerNodeExtRef -p 3000:3000   -v $(pwd):/home/node/exec_env -w /home/node/exec_env node:$TYPE_SOURCE_PHS_VERSION node  ./server.js"; fi
     dockerContainerIDphs=$(docker run --rm -d $dockerNodeExtRef -p 3000:3000 \
           \
-        -v "$(pwd)":/home/node/exec_env -w /home/node/exec_env node:$TYPE_SOURCE_PHS_VERSION node  ./)
+        -v "$(pwd)":/home/node/exec_env -w /home/node/exec_env node:$TYPE_SOURCE_PHS_VERSION node  ./server.js)
     echo "$dockerContainerIDphs">.phsPid
   else
     dockerContainerIDphs=$(<.phsPid)
@@ -548,7 +548,7 @@ if [ "$TYPE_SOURCE_PHS" == "local" ]; then
   if [ ! -f ".phsPid" ]; then
     cat <<-'    EOF' > localrun/noint.js
       process.on( "SIGINT", function() {} );
-      require('../');
+      require('../server.js');
     EOF
     if [ -n "$VERBOSE" ]; then echo " node  localrun/noint.js >localrun/noint.out 2>&1 &"; fi
     
